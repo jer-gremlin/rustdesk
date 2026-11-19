@@ -1550,6 +1550,8 @@ jobs:
           fi
 
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
       - uses: nttld/setup-ndk@ed92fe6cadad69be94a966a7ee3271275e62f779 # v1
         id: setup-ndk
@@ -2070,7 +2072,7 @@ jobs:
         run: |
           ls -l "${PWD}"
           ls -l "${{ runner.temp }}/vcpkg/installed"
-          docker run --rm \
+          docker run --rm -i \
             --volume "${PWD}:/workspace" \
             --volume "${{ runner.temp }}:${{ runner.temp }}" \
             -w /workspace \
@@ -2399,7 +2401,7 @@ jobs:
         run: |
           ls -l "${PWD}"
           ls -l "${{ runner.temp }}/vcpkg/installed"
-          docker run --rm \
+          docker run --rm -i \
             --volume "${PWD}:/workspace" \
             --volume "${{ runner.temp }}:${{ runner.temp }}" \
             -w /workspace \
