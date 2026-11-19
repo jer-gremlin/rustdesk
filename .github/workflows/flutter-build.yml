@@ -1555,6 +1555,9 @@ jobs:
           ndk-version: ${{ env.NDK_VERSION }}
           add-to-path: true
 
+      - name: Export ANDROID_NDK_HOME
+        run: echo "ANDROID_NDK_HOME=${{ steps.setup-ndk.outputs.ndk-path }}" >> $GITHUB_ENV
+
       - name: Setup vcpkg with Github Actions binary cache
         uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2 # v11
         with:
@@ -2376,8 +2379,10 @@ jobs:
       # build.py and hand the .so to the container below via DRMTAP_PREBUILT_DIR.
       - name: Build libdrmtap
         run: |
-          sudo apt-get install -y meson ninja-build pkg-config \
-            libdrm-dev libegl1-mesa-dev libgles2-mesa-dev
+          if sudo -n true 2>/dev/null; then
+            sudo apt-get install -y meson ninja-build pkg-config \
+              libdrm-dev libegl1-mesa-dev libgles2-mesa-dev
+          fi
           python3 - <<'PY'
           import importlib.util, sys
           spec = importlib.util.spec_from_file_location("b", "build.py")
