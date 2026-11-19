@@ -120,11 +120,12 @@ unsafe fn set_delegate(handler: Option<Box<dyn AppHandler>>) {
         return;
     };
     let manager: *mut Object = msg_send![cls, sharedAppleEventManager];
+    // Apple kInternetEventClass / kAEGetURL URL-scheme handler codes ('GURL').
     let _: () = msg_send![manager,
                               setEventHandler: delegate
                               andSelector: sel!(handleEvent:withReplyEvent:)
-                              forEventClass: fruitbasket::kInternetEventClass
-                              andEventID: fruitbasket::kAEGetURL];
+                              forEventClass: 0x4755524c_u32
+                              andEventID: 0x4755524c_u32];
     let () = msg_send![NSApp(), setDelegate: delegate];
 }
 
