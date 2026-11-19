@@ -118,6 +118,12 @@ jobs:
     - name: Install prerequisites
       shell: bash
       run: |
+        # Self-hosted runners may not grant the runner user passwordless sudo.
+        # Skip apt and assume the packages are preinstalled.
+        if ! sudo -n true 2>/dev/null; then
+          echo "No passwordless sudo; assuming prerequisites are preinstalled"
+          exit 0
+        fi
         case ${{ matrix.job.target }} in
           x86_64-unknown-linux-gnu)
             sudo apt-get -y update
