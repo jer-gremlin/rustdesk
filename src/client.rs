@@ -2235,7 +2235,7 @@ impl Default for AudioBuffer {
 impl AudioBuffer {
     pub fn resize(&mut self, sample_rate: usize, channels: usize) {
         let capacity = sample_rate * channels * AUDIO_BUFFER_MS / 1000;
-        let old_capacity = self.0.lock().unwrap().capacity();
+        let old_capacity = self.0.lock().unwrap().capacity().get();
         if capacity != old_capacity {
             *self.0.lock().unwrap() = ringbuf::HeapRb::<f32>::new(capacity);
             self.1 = sample_rate * channels;
