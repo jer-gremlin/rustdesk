@@ -1546,7 +1546,7 @@ jobs:
         run: |
           cd $(dirname $(dirname $(which flutter)))
           if [[ "3.24.5" == ${{env.ANDROID_FLUTTER_VERSION}} ]]; then
-            git apply /workspace/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
+            git apply ${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
           fi
 
       - uses: android-actions/setup-android@v3
@@ -1826,7 +1826,7 @@ jobs:
         run: |
           cd $(dirname $(dirname $(which flutter)))
           if [[ "3.24.5" == ${{env.ANDROID_FLUTTER_VERSION}} ]]; then
-            git apply /workspace/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
+            git apply ${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
           fi
 
       - name: Restore bridge files
