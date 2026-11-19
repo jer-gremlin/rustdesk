@@ -6,6 +6,10 @@ env:
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
   # for multiarch gcc compatibility
   VCPKG_COMMIT_ID: "9e593bb18ea69cc5095e012465dcd675a822ed0d"
+  # Clear profile.d sccache vars until shared caching works on the slurm fleet.
+  RUSTC_WRAPPER: ""
+  CMAKE_C_COMPILER_LAUNCHER: ""
+  CMAKE_CXX_COMPILER_LAUNCHER: ""
 
 on:
   workflow_dispatch:
@@ -82,11 +86,11 @@ jobs:
           # - { target: x86_64-pc-windows-gnu       , os: windows-2022                  }
           # - { target: x86_64-pc-windows-msvc      , os: windows-2022                  }
           # - { target: aarch64-pc-windows-msvc     , os: windows-11-arm                }
-          - { target: x86_64-unknown-linux-gnu    , os: ubuntu-24.04                  }
+          - { target: x86_64-unknown-linux-gnu    , os: [self-hosted, slurm, cpu]     }
           # - { target: x86_64-unknown-linux-musl   , os: ubuntu-20.04, use-cross: true }
     steps:
     - name: Free Disk Space (Ubuntu)
-      if: runner.os == 'Linux'
+      if: runner.os == 'Linux' && runner.environment != 'self-hosted'
       # jlumbroso/free-disk-space@v1.3.1 is used in .github\workflows\flutter-build.yml
       # But pinning to a specific version to avoid unexpected issues is preferred.
       uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
@@ -114,6 +118,12 @@ jobs:
     - name: Install prerequisites
       shell: bash
       run: |
+        # Self-hosted runners may not grant the runner user passwordless sudo.
+        # Skip apt and assume the packages are preinstalled.
+        if ! sudo -n true 2>/dev/null; then
+          echo "No passwordless sudo; assuming prerequisites are preinstalled"
+          exit 0
+        fi
         case ${{ matrix.job.target }} in
           x86_64-unknown-linux-gnu)
             sudo apt-get -y update
@@ -147,7 +157,7 @@ jobs:
     - name: Setup vcpkg with Github Actions binary cache
       uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2 # v11
       with:
-        vcpkgDirectory: /opt/artifacts/vcpkg
+        vcpkgDirectory: ${{ runner.temp }}/vcpkg
         vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
 
     - name: Install vcpkg dependencies

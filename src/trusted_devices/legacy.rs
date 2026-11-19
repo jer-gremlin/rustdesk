@@ -132,7 +132,7 @@ impl Grants {
         let origin = self
             .records
             .iter()
-            .find(|record| !record.legacy && record.verifier == *verifier)
+            .find(|record| !record.legacy && utils::memcmp(&record.verifier, verifier))
             .and_then(|record| record.origin);
         let Some(origin) = origin else {
             return false;

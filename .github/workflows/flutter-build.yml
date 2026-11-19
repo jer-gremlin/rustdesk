@@ -22,7 +22,7 @@ on:
 
 env:
   SCITER_RUST_VERSION: "1.75" # https://github.com/rustdesk/rustdesk/discussions/7503, also 1.78 has ABI change which causes our sciter version not working, https://blog.rust-lang.org/2024/03/30/i128-layout-update.html
-  RUST_VERSION: "1.75" # sciter failed on m1 with 1.78 because of https://blog.rust-lang.org/2024/03/30/i128-layout-update.html
+  RUST_VERSION: "stable" # edition2024 in Cargo.lock requires >= 1.85
   MAC_RUST_VERSION: "1.81" # 1.81 is requred for macos, because of https://github.com/yury/cidre requires 1.81
   CARGO_NDK_VERSION: "3.1.2"
   SCITER_ARMV7_CMAKE_VERSION: "3.29.7"
@@ -52,7 +52,7 @@ env:
   # 2. Update the `VCPKG_COMMIT_ID` in `ci.yml` and `playground.yml`.
   VCPKG_COMMIT_ID: "9e593bb18ea69cc5095e012465dcd675a822ed0d"
   VCPKG_CMAKE_VERSION: "4.3.0"
-  ARMV7_VCPKG_COMMIT_ID: "6f29f12e82a8293156836ad81cc9bf5af41fe836" # 2025.01.13, got "/opt/artifacts/vcpkg/vcpkg: No such file or directory" with latest version
+  ARMV7_VCPKG_COMMIT_ID: "6f29f12e82a8293156836ad81cc9bf5af41fe836" # 2025.01.13, got "${{ runner.temp }}/vcpkg/vcpkg: No such file or directory" with latest version
   VERSION: "1.5.3"
   NDK_VERSION: "r28c"
   #signing keys env variable checks
@@ -61,10 +61,13 @@ env:
   UPLOAD_ARTIFACT: "${{ inputs.upload-artifact }}"
   PUBLISH_UPDATE_METADATA: "${{ inputs.publish-update-metadata }}"
   SIGN_BASE_URL: "${{ secrets.SIGN_BASE_URL }}-2"
+  RUSTC_WRAPPER: ""
+  CMAKE_C_COMPILER_LAUNCHER: ""
+  CMAKE_CXX_COMPILER_LAUNCHER: ""
 
 jobs:
   validate-update-metadata-keys:
-    runs-on: ubuntu-22.04
+    runs-on: [self-hosted, slurm, cpu]
     permissions:
       contents: read
     steps:
@@ -101,7 +104,7 @@ jobs:
 
   generate-sbom:
     needs: [validate-update-metadata-keys]
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, slurm, cpu]
 
     permissions:
       contents: write
@@ -133,6 +136,7 @@ jobs:
     uses: ./.github/workflows/bridge.yml
 
   build-RustDeskTempTopMostWindow:
+    if: false
     needs: [validate-update-metadata-keys]
     uses: ./.github/workflows/third-party-RustDeskTempTopMostWindow.yml
     strategy:
@@ -155,6 +159,7 @@ jobs:
       target_version: Windows10
 
   build-for-windows-flutter:
+    if: false
     name: ${{ matrix.job.target }}
     needs: [build-RustDeskTempTopMostWindow, generate-bridge]
     runs-on: ${{ matrix.job.os }}
@@ -581,6 +586,7 @@ jobs:
 
   # The fallback for the flutter version, we use Sciter for 32bit Windows.
   build-for-windows-sciter:
+    if: false
     name: ${{ matrix.job.target }} (${{ matrix.job.os }})
     needs: [validate-update-metadata-keys]
     runs-on: ${{ matrix.job.os }}
@@ -816,6 +822,7 @@ jobs:
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
       - name: Install dependencies
+        if: runner.environment != 'self-hosted'
         run: |
           brew install nasm yasm
       - name: Checkout source code
@@ -833,7 +840,7 @@ jobs:
         run: |
           cd $(dirname $(dirname $(which flutter)))
           if [[ "3.24.5" == ${{env.FLUTTER_VERSION}} ]]; then
-            git apply ${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
+            git apply /workspace/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
           fi
 
       - name: Setup vcpkg with Github Actions binary cache
@@ -915,6 +922,7 @@ jobs:
 
 
   build-for-macOS:
+    if: false
     name: ${{ matrix.job.target }}
     runs-on: ${{ matrix.job.os }}
     needs: [generate-bridge]
@@ -1025,7 +1033,7 @@ jobs:
         run: |
           cd $(dirname $(dirname $(which flutter)))
           if [[ "3.24.5" == ${{env.FLUTTER_VERSION}} ]]; then
-            git apply ${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
+            git apply /workspace/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
           fi
 
       - name: Workaround for flutter issue
@@ -1206,7 +1214,7 @@ jobs:
 
   publish-signed-update-metadata:
     needs: [build-for-windows-flutter, build-for-windows-sciter, build-for-macOS]
-    runs-on: ubuntu-22.04
+    runs-on: [self-hosted, slurm, cpu]
     if: ${{ inputs.upload-artifact && inputs.publish-update-metadata && github.repository == 'rustdesk/rustdesk' }}
     concurrency:
       group: signed-update-${{ inputs.upload-tag }}
@@ -1344,7 +1352,7 @@ jobs:
       - build-for-macOS
       - build-for-windows-flutter
       - build-for-windows-sciter
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, slurm, cpu]
     if: ${{ inputs.upload-artifact }}
     steps:
       - name: Download artifacts
@@ -1436,26 +1444,27 @@ jobs:
           - {
               arch: aarch64,
               target: aarch64-linux-android,
-              os: ubuntu-24.04,
+              os: [self-hosted, slurm, cpu],
               reltype: release,
               suffix: "",
             }
           - {
               arch: armv7,
               target: armv7-linux-androideabi,
-              os: ubuntu-24.04,
+              os: [self-hosted, slurm, cpu],
               reltype: release,
               suffix: "",
             }
           - {
               arch: x86_64,
               target: x86_64-linux-android,
-              os: ubuntu-24.04,
+              os: [self-hosted, slurm, cpu],
               reltype: release,
               suffix: "",
             }
     steps:
       - name: Free Disk Space (Ubuntu)
+        if: runner.environment != 'self-hosted'
         uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
         with:
           tool-cache: false
@@ -1474,6 +1483,7 @@ jobs:
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
       - name: Install dependencies
+        if: runner.environment != 'self-hosted'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -1539,16 +1549,23 @@ jobs:
             git apply ${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
           fi
 
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
       - uses: nttld/setup-ndk@ed92fe6cadad69be94a966a7ee3271275e62f779 # v1
         id: setup-ndk
         with:
           ndk-version: ${{ env.NDK_VERSION }}
           add-to-path: true
 
+      - name: Export ANDROID_NDK_HOME
+        run: echo "ANDROID_NDK_HOME=${{ steps.setup-ndk.outputs.ndk-path }}" >> $GITHUB_ENV
+
       - name: Setup vcpkg with Github Actions binary cache
         uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2 # v11
         with:
-          vcpkgDirectory: /opt/artifacts/vcpkg
+          vcpkgDirectory: ${{ runner.temp }}/vcpkg
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
           doNotCache: false
 
@@ -1687,9 +1704,11 @@ jobs:
 
       # https://github.com/r0adkll/sign-android-release/issues/84#issuecomment-1889636075
       - name: Setup sign tool version variable
+        if: env.ANDROID_SIGNING_KEY != null
         shell: bash
         run: |
-          BUILD_TOOL_VERSION=$(ls /usr/local/lib/android/sdk/build-tools/ | tail -n 1)
+          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          BUILD_TOOL_VERSION=$(ls "$SDK_ROOT/build-tools/" | tail -n 1)
           echo "ANDROID_SIGN_TOOL_VERSION=$BUILD_TOOL_VERSION" >> $GITHUB_ENV
           echo Last build tool version is: $BUILD_TOOL_VERSION
 
@@ -1711,7 +1730,7 @@ jobs:
         if: env.ANDROID_SIGNING_KEY != null && env.UPLOAD_ARTIFACT == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.apk
+          name: rustdesk-${{ env.VERSION }}-universal.apk
           path: ${{steps.sign-rustdesk.outputs.signedReleaseFile}}
 
       - name: Publish signed apk package
@@ -1736,13 +1755,14 @@ jobs:
     needs: [build-rustdesk-android]
     name: build rustdesk android universal apk
     if: ${{ inputs.upload-artifact }}
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, slurm, cpu]
     env:
       reltype: release
       x86_target: "" # can be ",android-x86"
       suffix: ""
     steps:
       - name: Free Disk Space (Ubuntu)
+        if: runner.environment != 'self-hosted'
         uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
         with:
           tool-cache: false
@@ -1761,6 +1781,7 @@ jobs:
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
       - name: Install dependencies
+        if: runner.environment != 'self-hosted'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -1872,9 +1893,11 @@ jobs:
 
       # https://github.com/r0adkll/sign-android-release/issues/84#issuecomment-1889636075
       - name: Setup sign tool version variable
+        if: env.ANDROID_SIGNING_KEY != null
         shell: bash
         run: |
-          BUILD_TOOL_VERSION=$(ls /usr/local/lib/android/sdk/build-tools/ | tail -n 1)
+          SDK_ROOT="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          BUILD_TOOL_VERSION=$(ls "$SDK_ROOT/build-tools/" | tail -n 1)
           echo "ANDROID_SIGN_TOOL_VERSION=$BUILD_TOOL_VERSION" >> $GITHUB_ENV
           echo Last build tool version is: $BUILD_TOOL_VERSION
 
@@ -1896,7 +1919,7 @@ jobs:
         if: env.ANDROID_SIGNING_KEY != null && env.UPLOAD_ARTIFACT == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}.apk
+          name: rustdesk-${{ env.VERSION }}-universal.apk
           path: ${{steps.sign-rustdesk.outputs.signedReleaseFile}}
 
       - name: Publish signed apk package
@@ -1930,18 +1953,18 @@ jobs:
               arch: x86_64,
               target: x86_64-unknown-linux-gnu,
               distro: ubuntu18.04,
-              on: ubuntu-22.04,
+              on: [self-hosted, slurm, cpu],
               deb_arch: amd64,
               vcpkg-triplet: x64-linux,
             }
-          - {
-              arch: aarch64,
-              target: aarch64-unknown-linux-gnu,
-              distro: ubuntu18.04,
-              on: ubuntu-22.04-arm,
-              deb_arch: arm64,
-              vcpkg-triplet: arm64-linux,
-            }
+          # - {
+          # arch: aarch64,
+          # target: aarch64-unknown-linux-gnu,
+          # distro: ubuntu18.04,
+          # on: ubuntu-22.04-arm,
+          # deb_arch: arm64,
+          # vcpkg-triplet: arm64-linux,
+          # }
     steps:
       - name: Export GitHub Actions cache environment variables
         uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6
@@ -1951,6 +1974,7 @@ jobs:
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
       - name: Maximize build space
+        if: runner.environment != 'self-hosted'
         run: |
           sudo rm -rf /opt/ghc
           sudo rm -rf /usr/local/lib/android
@@ -1967,6 +1991,7 @@ jobs:
           submodules: recursive
 
       - name: Set Swap Space
+        if: runner.environment != 'self-hosted'
         uses: pierotofy/set-swap-space@49819abfb41bd9b44fb781159c033dba90353a7c # v1.0
         with:
           swap-size-gb: 12
@@ -2014,14 +2039,14 @@ jobs:
         if: matrix.job.arch == 'x86_64' || env.UPLOAD_ARTIFACT == 'true'
         uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2 # v11
         with:
-          vcpkgDirectory: /opt/artifacts/vcpkg
+          vcpkgDirectory: ${{ runner.temp }}/vcpkg
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
           doNotCache: false
 
       - name: Install vcpkg dependencies
         if: matrix.job.arch == 'x86_64' || env.UPLOAD_ARTIFACT == 'true'
         run: |
-          sudo apt install -y libva-dev && apt show libva-dev
+          if sudo -n true 2>/dev/null; then sudo apt install -y libva-dev && apt show libva-dev; fi
           if ! $VCPKG_ROOT/vcpkg \
             install \
             --triplet ${{ matrix.job.vcpkg-triplet }} \
@@ -2045,22 +2070,21 @@ jobs:
           name: bridge-artifact
           path: ./
 
-      - uses: rustdesk-org/run-on-arch-action@d3fcfbb632b84cf7f6bc772bfaaa2c2f4f8789a8 # no release tag; commit 2026-05-26
-        name: Build rustdesk
+      - name: Build rustdesk
         id: vcpkg
         if: matrix.job.arch == 'x86_64' || env.UPLOAD_ARTIFACT == 'true'
-        with:
-          arch: ${{ matrix.job.arch }}
-          distro: ${{ matrix.job.distro }}
-          githubToken: ${{ github.token }}
-          setup: |
-            ls -l "${PWD}"
-            ls -l /opt/artifacts/vcpkg/installed
-          dockerRunArgs: |
-            --volume "${PWD}:/workspace"
-            --volume "/opt/artifacts:/opt/artifacts"
-          shell: /bin/bash
-          install: |
+        run: |
+          ls -l "${PWD}"
+          ls -l "${{ runner.temp }}/vcpkg/installed"
+          docker run --rm -i \
+            --volume "${PWD}:/workspace" \
+            --volume "${{ runner.temp }}:${{ runner.temp }}" \
+            -w /workspace \
+            -e DEBIAN_FRONTEND=noninteractive \
+            -e HOST_UID="$(id -u)" \
+            -e HOST_GID="$(id -g)" \
+            ubuntu:18.04 bash -euo pipefail -s <<'DOCKER_EOF'
+            trap 'chown -R "$HOST_UID:$HOST_GID" /workspace' EXIT
             apt-get update -y
             echo -e "installing deps"
             apt-get install -y \
@@ -2099,8 +2123,7 @@ jobs:
             apt-get remove -y libopus-dev || true
             # output devs
             ls -l ./
-            tree -L 3 /opt/artifacts/vcpkg/installed
-          run: |
+            tree -L 3 ${{ runner.temp }}/vcpkg/installed
             # disable git safe.directory
             git config --global --add safe.directory "*"
             # rust
@@ -2119,7 +2142,7 @@ jobs:
             cat ~/.cargo/config
             # start build
             pushd /workspace
-            export VCPKG_ROOT=/opt/artifacts/vcpkg
+            export VCPKG_ROOT=${{ runner.temp }}/vcpkg
             if [[ "${{ matrix.job.arch }}" == "aarch64" ]]; then
               export JOBS="--jobs 3"
             else
@@ -2175,7 +2198,7 @@ jobs:
                   pushd /opt/flutter
                 ;;
               esac
-              git apply ${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
+              git apply /workspace/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
               popd
             fi
 
@@ -2220,6 +2243,7 @@ jobs:
             for name in rustdesk*??.rpm; do
                 mv "$name" /workspace/"${name%%.rpm}-suse.rpm"
             done
+          DOCKER_EOF
 
       - name: Publish debian/rpm package
         if: env.UPLOAD_ARTIFACT == 'true'
@@ -2274,7 +2298,7 @@ jobs:
   build-rustdesk-linux-drm:
     needs: [generate-bridge]
     name: build rustdesk linux drm x86_64
-    runs-on: ubuntu-22.04
+    runs-on: [self-hosted, slurm, cpu]
     steps:
       - name: Export GitHub Actions cache environment variables
         uses: actions/github-script@d7906e4ad0b1822421a7e6a35d5ca353c962f410 # v6
@@ -2284,6 +2308,7 @@ jobs:
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
       - name: Maximize build space
+        if: runner.environment != 'self-hosted'
         run: |
           sudo rm -rf /opt/ghc
           sudo rm -rf /usr/local/lib/android
@@ -2298,6 +2323,7 @@ jobs:
           submodules: recursive
 
       - name: Set Swap Space
+        if: runner.environment != 'self-hosted'
         uses: pierotofy/set-swap-space@49819abfb41bd9b44fb781159c033dba90353a7c # v1.0
         with:
           swap-size-gb: 12
@@ -2333,13 +2359,13 @@ jobs:
       - name: Setup vcpkg with Github Actions binary cache
         uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2 # v11
         with:
-          vcpkgDirectory: /opt/artifacts/vcpkg
+          vcpkgDirectory: ${{ runner.temp }}/vcpkg
           vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
           doNotCache: false
 
       - name: Install vcpkg dependencies
         run: |
-          sudo apt install -y libva-dev && apt show libva-dev
+          if sudo -n true 2>/dev/null; then sudo apt install -y libva-dev && apt show libva-dev; fi
           if ! $VCPKG_ROOT/vcpkg \
             install \
             --triplet x64-linux \
@@ -2360,8 +2386,10 @@ jobs:
       # build.py and hand the .so to the container below via DRMTAP_PREBUILT_DIR.
       - name: Build libdrmtap
         run: |
-          sudo apt-get install -y meson ninja-build pkg-config \
-            libdrm-dev libegl1-mesa-dev libgles2-mesa-dev
+          if sudo -n true 2>/dev/null; then
+            sudo apt-get install -y meson ninja-build pkg-config \
+              libdrm-dev libegl1-mesa-dev libgles2-mesa-dev
+          fi
           python3 - <<'PY'
           import importlib.util, sys
           spec = importlib.util.spec_from_file_location("b", "build.py")
@@ -2372,21 +2400,20 @@ jobs:
           PY
         shell: bash
 
-      - uses: rustdesk-org/run-on-arch-action@d3fcfbb632b84cf7f6bc772bfaaa2c2f4f8789a8 # no release tag; commit 2026-05-26
-        name: Build rustdesk
+      - name: Build rustdesk
         id: vcpkg
-        with:
-          arch: x86_64
-          distro: ubuntu18.04
-          githubToken: ${{ github.token }}
-          setup: |
-            ls -l "${PWD}"
-            ls -l /opt/artifacts/vcpkg/installed
-          dockerRunArgs: |
-            --volume "${PWD}:/workspace"
-            --volume "/opt/artifacts:/opt/artifacts"
-          shell: /bin/bash
-          install: |
+        run: |
+          ls -l "${PWD}"
+          ls -l "${{ runner.temp }}/vcpkg/installed"
+          docker run --rm -i \
+            --volume "${PWD}:/workspace" \
+            --volume "${{ runner.temp }}:${{ runner.temp }}" \
+            -w /workspace \
+            -e DEBIAN_FRONTEND=noninteractive \
+            -e HOST_UID="$(id -u)" \
+            -e HOST_GID="$(id -g)" \
+            ubuntu:18.04 bash -euo pipefail -s <<'DOCKER_EOF'
+            trap 'chown -R "$HOST_UID:$HOST_GID" /workspace' EXIT
             apt-get update -y
             echo -e "installing deps"
             apt-get install -y \
@@ -2425,8 +2452,7 @@ jobs:
             apt-get remove -y libopus-dev || true
             # output devs
             ls -l ./
-            tree -L 3 /opt/artifacts/vcpkg/installed
-          run: |
+            tree -L 3 ${{ runner.temp }}/vcpkg/installed
             # disable git safe.directory
             git config --global --add safe.directory "*"
             # rust
@@ -2445,7 +2471,7 @@ jobs:
             cat ~/.cargo/config
             # start build
             pushd /workspace
-            export VCPKG_ROOT=/opt/artifacts/vcpkg
+            export VCPKG_ROOT=${{ runner.temp }}/vcpkg
             # use the .so built on the runner; build.py checks it is the pinned checkout
             export DRMTAP_PREBUILT_DIR=/workspace/third_party/libdrmtap/build-pkg
             # ask build.py for the features so this line and the packaging line cannot drift
@@ -2527,7 +2553,7 @@ jobs:
 
             if [[ "3.24.5" == ${{ env.FLUTTER_VERSION }} ]]; then
               pushd /opt/flutter
-              git apply ${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
+              git apply /workspace/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
               popd
             fi
 
@@ -2539,6 +2565,7 @@ jobs:
             for name in rustdesk*??.deb; do
               mv "$name" "${name%%.deb}-x86_64.deb"
             done
+          DOCKER_EOF
 
       # build.py can exit 0 on some inner failures, so check the artifact rather than the status.
       # The package name is the informed consent for consent-free capture, so a stock binary must
@@ -2603,7 +2630,7 @@ jobs:
           - {
               arch: x86_64,
               target: x86_64-unknown-linux-gnu,
-              on: ubuntu-22.04,
+              on: [self-hosted, slurm, cpu],
               distro: ubuntu18.04,
               deb_arch: amd64,
               sciter_arch: x64,
@@ -2613,7 +2640,7 @@ jobs:
           - {
               arch: armv7,
               target: armv7-unknown-linux-gnueabihf,
-              on: ubuntu-22.04-arm,
+              on: [self-hosted, slurm, cpu],
               distro: ubuntu18.04-rustdesk,
               deb_arch: armhf,
               sciter_arch: arm32,
@@ -2642,7 +2669,7 @@ jobs:
           grep -A 2 -B 2 '"baseline"' vcpkg.json
 
       - name: Set Swap Space
-        if: matrix.job.arch == 'armv7'
+        if: runner.environment != 'self-hosted' && matrix.job.arch == 'armv7'
         uses: pierotofy/set-swap-space@49819abfb41bd9b44fb781159c033dba90353a7c # v1.0
         with:
           swap-size-gb: 12
@@ -2726,9 +2753,9 @@ jobs:
               export PATH="/opt/cmake-${{ env.SCITER_ARMV7_CMAKE_VERSION }}-linux-armhf/bin:$PATH"
             fi
             # bootstrap vcpkg and set VCPKG_ROOT
-            export VCPKG_ROOT=/opt/artifacts/vcpkg
-            mkdir -p /opt/artifacts
-            pushd /opt/artifacts
+            export VCPKG_ROOT=${{ runner.temp }}/vcpkg
+            mkdir -p ${{ runner.temp }}
+            pushd ${{ runner.temp }}
             rm -rf vcpkg
             git clone https://github.com/microsoft/vcpkg
             pushd vcpkg
@@ -2774,7 +2801,7 @@ jobs:
             """ > ~/.cargo/config
             cat ~/.cargo/config
             # install dependencies from vcpkg
-            export VCPKG_ROOT=/opt/artifacts/vcpkg
+            export VCPKG_ROOT=${{ runner.temp }}/vcpkg
             # remove this when support higher version
             export USE_AOM_391=1
             if ! $VCPKG_ROOT/vcpkg install --triplet ${{ matrix.job.vcpkg-triplet }} --x-install-root="$VCPKG_ROOT/installed"; then
@@ -2836,7 +2863,7 @@ jobs:
   build-appimage:
     name: Build appimage ${{ matrix.job.target }}
     needs: [build-rustdesk-linux]
-    runs-on: ubuntu-22.04
+    runs-on: [self-hosted, slurm, cpu]
     if: ${{ inputs.upload-artifact }}
     strategy:
       fail-fast: false
@@ -2901,14 +2928,14 @@ jobs:
               target: x86_64-unknown-linux-gnu,
               # https://github.com/ostreedev/ostree/commit/4bac96a8c817beda37448f9b8c662162bb619981
               distro: ubuntu22.04,
-              on: ubuntu-22.04,
+              on: [self-hosted, slurm, cpu],
               arch: x86_64,
               suffix: "",
             }
           - {
               target: x86_64-unknown-linux-gnu,
               distro: ubuntu22.04,
-              on: ubuntu-22.04,
+              on: [self-hosted, slurm, cpu],
               arch: x86_64,
               suffix: "-sciter",
             }
@@ -2916,7 +2943,7 @@ jobs:
               target: aarch64-unknown-linux-gnu,
               # try out newer flatpak since error of "error: Nothing matches org.freedesktop.Platform in remote flathub"
               distro: ubuntu22.04,
-              on: ubuntu-22.04-arm,
+              on: [self-hosted, slurm, cpu],
               arch: aarch64,
               suffix: "",
             }
@@ -2972,10 +2999,10 @@ jobs:
             flatpak/rustdesk-${{ env.VERSION }}-${{ matrix.job.arch }}${{ matrix.job.suffix }}.flatpak
 
   build-rustdesk-web:
-    if: False
+    if: false
     needs: [validate-update-metadata-keys]
     name: build-rustdesk-web
-    runs-on: ubuntu-22.04
+    runs-on: [self-hosted, slurm, cpu]
     permissions:
       contents: read
     strategy:
@@ -3004,7 +3031,7 @@ jobs:
         run: |
           cd $(dirname $(dirname $(which flutter)))
           if [[ "3.24.5" == ${{env.FLUTTER_VERSION}} ]]; then
-            git apply ${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
+            git apply /workspace/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
           fi
 
       - name: Patch sources for Flutter 3.44 web
