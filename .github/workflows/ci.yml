@@ -90,7 +90,7 @@ jobs:
           # - { target: x86_64-unknown-linux-musl   , os: ubuntu-20.04, use-cross: true }
     steps:
     - name: Free Disk Space (Ubuntu)
-      if: runner.os == 'Linux'
+      if: runner.os == 'Linux' && runner.environment != 'self-hosted'
       # jlumbroso/free-disk-space@v1.3.1 is used in .github\workflows\flutter-build.yml
       # But pinning to a specific version to avoid unexpected issues is preferred.
       uses: jlumbroso/free-disk-space@54081f138730dfa15788a46383842cd2f914a1be # v1.3.1
@@ -157,7 +157,7 @@ jobs:
     - name: Setup vcpkg with Github Actions binary cache
       uses: lukka/run-vcpkg@b1a0dd252f06b9e25b3c022a9a03bd7a427fb6a2 # v11
       with:
-        vcpkgDirectory: /opt/artifacts/vcpkg
+        vcpkgDirectory: ${{ runner.temp }}/vcpkg
         vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
 
     - name: Install vcpkg dependencies
