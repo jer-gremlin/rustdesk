@@ -840,7 +840,7 @@ jobs:
         run: |
           cd $(dirname $(dirname $(which flutter)))
           if [[ "3.24.5" == ${{env.FLUTTER_VERSION}} ]]; then
-            git apply ${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
+            git apply /workspace/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
           fi
 
       - name: Setup vcpkg with Github Actions binary cache
@@ -1033,7 +1033,7 @@ jobs:
         run: |
           cd $(dirname $(dirname $(which flutter)))
           if [[ "3.24.5" == ${{env.FLUTTER_VERSION}} ]]; then
-            git apply ${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
+            git apply /workspace/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
           fi
 
       - name: Workaround for flutter issue
@@ -1546,8 +1546,10 @@ jobs:
         run: |
           cd $(dirname $(dirname $(which flutter)))
           if [[ "3.24.5" == ${{env.ANDROID_FLUTTER_VERSION}} ]]; then
-            git apply ${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
+            git apply /workspace/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
           fi
+
+      - uses: android-actions/setup-android@v3
 
       - uses: nttld/setup-ndk@ed92fe6cadad69be94a966a7ee3271275e62f779 # v1
         id: setup-ndk
@@ -1824,7 +1826,7 @@ jobs:
         run: |
           cd $(dirname $(dirname $(which flutter)))
           if [[ "3.24.5" == ${{env.ANDROID_FLUTTER_VERSION}} ]]; then
-            git apply ${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
+            git apply /workspace/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
           fi
 
       - name: Restore bridge files
@@ -2062,22 +2064,21 @@ jobs:
           name: bridge-artifact
           path: ./
 
-      - uses: rustdesk-org/run-on-arch-action@d3fcfbb632b84cf7f6bc772bfaaa2c2f4f8789a8 # no release tag; commit 2026-05-26
-        name: Build rustdesk
+      - name: Build rustdesk
         id: vcpkg
         if: matrix.job.arch == 'x86_64' || env.UPLOAD_ARTIFACT == 'true'
-        with:
-          arch: ${{ matrix.job.arch }}
-          distro: ${{ matrix.job.distro }}
-          githubToken: ${{ github.token }}
-          setup: |
-            ls -l "${PWD}"
-            ls -l ${{ runner.temp }}/vcpkg/installed
-          dockerRunArgs: |
-            --volume "${PWD}:/workspace"
-            --volume "${{ runner.temp }}:${{ runner.temp }}"
-          shell: /bin/bash
-          install: |
+        run: |
+          ls -l "${PWD}"
+          ls -l "${{ runner.temp }}/vcpkg/installed"
+          docker run --rm \
+            --volume "${PWD}:/workspace" \
+            --volume "${{ runner.temp }}:${{ runner.temp }}" \
+            -w /workspace \
+            -e DEBIAN_FRONTEND=noninteractive \
+            -e HOST_UID="$(id -u)" \
+            -e HOST_GID="$(id -g)" \
+            ubuntu:18.04 bash -euo pipefail -s <<'DOCKER_EOF'
+            trap 'chown -R "$HOST_UID:$HOST_GID" /workspace' EXIT
             apt-get update -y
             echo -e "installing deps"
             apt-get install -y \
@@ -2117,7 +2118,6 @@ jobs:
             # output devs
             ls -l ./
             tree -L 3 ${{ runner.temp }}/vcpkg/installed
-          run: |
             # disable git safe.directory
             git config --global --add safe.directory "*"
             # rust
@@ -2192,7 +2192,7 @@ jobs:
                   pushd /opt/flutter
                 ;;
               esac
-              git apply ${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
+              git apply /workspace/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
               popd
             fi
 
@@ -2237,6 +2237,7 @@ jobs:
             for name in rustdesk*??.rpm; do
                 mv "$name" /workspace/"${name%%.rpm}-suse.rpm"
             done
+          DOCKER_EOF
 
       - name: Publish debian/rpm package
         if: env.UPLOAD_ARTIFACT == 'true'
@@ -2393,21 +2394,20 @@ jobs:
           PY
         shell: bash
 
-      - uses: rustdesk-org/run-on-arch-action@d3fcfbb632b84cf7f6bc772bfaaa2c2f4f8789a8 # no release tag; commit 2026-05-26
-        name: Build rustdesk
+      - name: Build rustdesk
         id: vcpkg
-        with:
-          arch: x86_64
-          distro: ubuntu18.04
-          githubToken: ${{ github.token }}
-          setup: |
-            ls -l "${PWD}"
-            ls -l ${{ runner.temp }}/vcpkg/installed
-          dockerRunArgs: |
-            --volume "${PWD}:/workspace"
-            --volume "${{ runner.temp }}:${{ runner.temp }}"
-          shell: /bin/bash
-          install: |
+        run: |
+          ls -l "${PWD}"
+          ls -l "${{ runner.temp }}/vcpkg/installed"
+          docker run --rm \
+            --volume "${PWD}:/workspace" \
+            --volume "${{ runner.temp }}:${{ runner.temp }}" \
+            -w /workspace \
+            -e DEBIAN_FRONTEND=noninteractive \
+            -e HOST_UID="$(id -u)" \
+            -e HOST_GID="$(id -g)" \
+            ubuntu:18.04 bash -euo pipefail -s <<'DOCKER_EOF'
+            trap 'chown -R "$HOST_UID:$HOST_GID" /workspace' EXIT
             apt-get update -y
             echo -e "installing deps"
             apt-get install -y \
@@ -2447,7 +2447,6 @@ jobs:
             # output devs
             ls -l ./
             tree -L 3 ${{ runner.temp }}/vcpkg/installed
-          run: |
             # disable git safe.directory
             git config --global --add safe.directory "*"
             # rust
@@ -2548,7 +2547,7 @@ jobs:
 
             if [[ "3.24.5" == ${{ env.FLUTTER_VERSION }} ]]; then
               pushd /opt/flutter
-              git apply ${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
+              git apply /workspace/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
               popd
             fi
 
@@ -2560,6 +2559,7 @@ jobs:
             for name in rustdesk*??.deb; do
               mv "$name" "${name%%.deb}-x86_64.deb"
             done
+          DOCKER_EOF
 
       # build.py can exit 0 on some inner failures, so check the artifact rather than the status.
       # The package name is the informed consent for consent-free capture, so a stock binary must
@@ -3025,7 +3025,7 @@ jobs:
         run: |
           cd $(dirname $(dirname $(which flutter)))
           if [[ "3.24.5" == ${{env.FLUTTER_VERSION}} ]]; then
-            git apply ${{ github.workspace }}/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
+            git apply /workspace/.github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff
           fi
 
       - name: Patch sources for Flutter 3.44 web
